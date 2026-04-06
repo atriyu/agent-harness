@@ -1,0 +1,45 @@
+---
+name: l7-proxy
+
+topology:
+  nodes:
+    proxy:
+      kind: linux
+      image: l7-proxy:latest
+      binds:
+        - configs/proxy:/etc/proxy
+      exec:
+        - ip addr add 10.0.1.1/24 dev eth1
+        - ip addr add 10.0.2.1/24 dev eth2
+      ports:
+        - "80:80"
+        - "443:443"
+        - "8080:8080"   # Management API
+
+    client:
+      kind: linux
+      image: test-client:latest
+      exec:
+        - ip addr add 10.0.1.2/24 dev eth1
+        - ip route add 10.0.2.0/24 via 10.0.1.1
+
+    api-backend:
+      kind: linux
+      image: test-server:latest
+      exec:
+        - ip addr add 10.0.2.11/24 dev eth1
+        # Start HTTP server on port 8080
+        - python3 -m http.server 8080 &
+
+    static-backend:
+      kind: linux
+      image: test-server:latest
+      exec:
+        - ip addr add 10.0.2.12/24 dev eth1
+        # Start HTTP server on port 80
+        - python3 -m http.server 80 &
+
+  links:
+    - endpoints: ["proxy:eth1", "client:eth1"]
+    - endpoints: ["proxy:eth2", "api-backend:eth1"]
+    - endpoints: ["proxy:eth3", "static-backend:eth1"]

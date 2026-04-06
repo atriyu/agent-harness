@@ -1,0 +1,46 @@
+# QA Test Report
+
+Generated: {{ generated_at }}
+
+## Executive Summary
+
+{{ executive_summary }}
+
+{% if run_result %}
+## Results
+
+| Metric | Value |
+|--------|-------|
+| Total | {{ run_result.total }} |
+| Passed | {{ run_result.passed }} |
+| Failed | {{ run_result.failed }} |
+| Errors | {{ run_result.errored }} |
+| Skipped | {{ run_result.skipped }} |
+| Duration | {{ "%.1f"|format(run_result.duration_seconds) }}s |
+| Pass Rate | {{ "%.1f"|format(run_result.passed / run_result.total * 100) }}% |
+{% endif %}
+
+{% if coverage %}
+## Requirement Coverage
+
+| Req ID | Description | Priority | Tests | Passed | Status |
+|--------|-------------|----------|-------|--------|--------|
+{% for c in coverage %}
+| {{ c.req_id }} | {{ c.description }} | {{ c.priority }} | {{ c.test_count }} | {{ c.passed }} | {{ c.status }} |
+{% endfor %}
+{% endif %}
+
+{% if triage and triage.entries %}
+## Failure Analysis
+
+{% for e in triage.entries %}
+### {{ e.failure_cluster_id }} [{{ e.severity.value | upper }}]
+
+- **Category**: {{ e.root_cause_category.value | replace("_", " ") | title }}
+- **Root Cause**: {{ e.root_cause_description }}
+- **Action**: {{ e.recommended_action }}
+- **Confidence**: {{ "%.0f"|format(e.confidence * 100) }}%
+- **Affected**: {{ e.affected_test_ids | join(", ") }}
+
+{% endfor %}
+{% endif %}

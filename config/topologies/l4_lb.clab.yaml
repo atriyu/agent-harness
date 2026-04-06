@@ -1,0 +1,54 @@
+---
+name: l4-loadbalancer
+
+topology:
+  nodes:
+    lb:
+      kind: linux
+      image: l4-loadbalancer:latest
+      binds:
+        - configs/lb:/etc/lb
+      exec:
+        - ip addr add 10.0.1.1/24 dev eth1
+        - ip addr add 10.0.2.1/24 dev eth2
+      ports:
+        - "80:80"
+        - "443:443"
+
+    client:
+      kind: linux
+      image: test-client:latest
+      exec:
+        - ip addr add 10.0.1.2/24 dev eth1
+        - ip route add 10.0.2.0/24 via 10.0.1.1
+
+    backend1:
+      kind: linux
+      image: test-server:latest
+      exec:
+        - ip addr add 10.0.2.11/24 dev eth1
+
+    backend2:
+      kind: linux
+      image: test-server:latest
+      exec:
+        - ip addr add 10.0.2.12/24 dev eth1
+
+    backend3:
+      kind: linux
+      image: test-server:latest
+      exec:
+        - ip addr add 10.0.2.13/24 dev eth1
+
+    backend4:
+      kind: linux
+      image: test-server:latest
+      exec:
+        - ip addr add 10.0.2.14/24 dev eth1
+
+  links:
+    - endpoints: ["lb:eth1", "client:eth1"]
+    - endpoints: ["lb:eth2", "backend1:eth1"]
+    - endpoints: ["lb:eth3", "backend2:eth1"]
+    - endpoints: ["lb:eth4", "backend3:eth1"]
+    - endpoints: ["lb:eth5", "backend4:eth1"]

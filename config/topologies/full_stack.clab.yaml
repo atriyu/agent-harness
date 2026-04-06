@@ -1,0 +1,97 @@
+---
+name: full-stack
+
+# Full topology combining VPN gateway, L4 load balancer, L7 proxy,
+# and multiple backend servers for comprehensive testing.
+
+topology:
+  nodes:
+    # --- Edge / VPN ---
+    vpn-gw:
+      kind: linux
+      image: vpn-gateway:latest
+      binds:
+        - configs/vpn-gw:/etc/vpn
+      exec:
+        - ip addr add 10.0.0.1/24 dev eth1
+        - ip addr add 10.0.1.1/24 dev eth2
+      ports:
+        - "51820:51820/udp"
+        - "1194:1194/udp"
+        - "500:500/udp"
+
+    # --- L4 Load Balancer ---
+    lb:
+      kind: linux
+      image: l4-loadbalancer:latest
+      binds:
+        - configs/lb:/etc/lb
+      exec:
+        - ip addr add 10.0.1.2/24 dev eth1
+        - ip addr add 10.0.2.1/24 dev eth2
+
+    # --- L7 Proxy / WAF ---
+    proxy:
+      kind: linux
+      image: l7-proxy:latest
+      binds:
+        - configs/proxy:/etc/proxy
+      exec:
+        - ip addr add 10.0.2.2/24 dev eth1
+        - ip addr add 10.0.3.1/24 dev eth2
+      ports:
+        - "8080:8080"
+
+    # --- Clients ---
+    client1:
+      kind: linux
+      image: test-client:latest
+      exec:
+        - ip addr add 10.0.0.10/24 dev eth1
+        - ip route add 10.0.0.0/8 via 10.0.0.1
+
+    client2:
+      kind: linux
+      image: test-client:latest
+      exec:
+        - ip addr add 10.0.0.11/24 dev eth1
+        - ip route add 10.0.0.0/8 via 10.0.0.1
+
+    # --- Backend Servers ---
+    api-server1:
+      kind: linux
+      image: test-server:latest
+      exec:
+        - ip addr add 10.0.3.11/24 dev eth1
+
+    api-server2:
+      kind: linux
+      image: test-server:latest
+      exec:
+        - ip addr add 10.0.3.12/24 dev eth1
+
+    web-server1:
+      kind: linux
+      image: test-server:latest
+      exec:
+        - ip addr add 10.0.3.21/24 dev eth1
+
+    web-server2:
+      kind: linux
+      image: test-server:latest
+      exec:
+        - ip addr add 10.0.3.22/24 dev eth1
+
+  links:
+    # Client to VPN gateway
+    - endpoints: ["vpn-gw:eth1", "client1:eth1"]
+    - endpoints: ["vpn-gw:eth1", "client2:eth1"]
+    # VPN gateway to L4 LB
+    - endpoints: ["vpn-gw:eth2", "lb:eth1"]
+    # L4 LB to L7 proxy
+    - endpoints: ["lb:eth2", "proxy:eth1"]
+    # L7 proxy to backends
+    - endpoints: ["proxy:eth2", "api-server1:eth1"]
+    - endpoints: ["proxy:eth3", "api-server2:eth1"]
+    - endpoints: ["proxy:eth4", "web-server1:eth1"]
+    - endpoints: ["proxy:eth5", "web-server2:eth1"]

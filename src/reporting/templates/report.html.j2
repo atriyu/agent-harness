@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>QA Test Report</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 1024px; margin: 40px auto; padding: 0 24px; color: #1e293b; line-height: 1.6; }
+    h1 { border-bottom: 3px solid #2563eb; padding-bottom: 12px; }
+    h2 { color: #1e40af; margin-top: 32px; }
+    .timestamp { color: #64748b; font-size: 0.9em; }
+    .summary-box { background: #eff6ff; border-left: 4px solid #2563eb; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin: 20px 0; }
+    .metric { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; text-align: center; }
+    .metric .value { font-size: 2.2em; font-weight: 700; }
+    .metric .label { color: #64748b; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.05em; }
+    .pass { color: #16a34a; }
+    .fail { color: #dc2626; }
+    .warn { color: #d97706; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.95em; }
+    th { background: #f1f5f9; font-weight: 600; text-align: left; padding: 10px 14px; border-bottom: 2px solid #cbd5e1; }
+    td { padding: 8px 14px; border-bottom: 1px solid #e2e8f0; }
+    tr:hover td { background: #f8fafc; }
+    .cluster-card { margin: 16px 0; padding: 16px; border: 1px solid #e2e8f0; border-radius: 10px; }
+    .cluster-card h3 { margin-top: 0; }
+    .severity-critical { color: #dc2626; font-weight: 700; }
+    .severity-high { color: #ea580c; font-weight: 600; }
+    .severity-medium { color: #d97706; }
+    .severity-low { color: #65a30d; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: 600; }
+    .badge-pass { background: #dcfce7; color: #166534; }
+    .badge-fail { background: #fee2e2; color: #991b1b; }
+    .badge-notest { background: #f1f5f9; color: #475569; }
+    footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 0.85em; }
+  </style>
+</head>
+<body>
+  <h1>QA Test Report</h1>
+  <p class="timestamp">Generated: {{ generated_at }}</p>
+
+  <div class="summary-box">
+    <h2 style="margin-top:0">Executive Summary</h2>
+    <p>{{ executive_summary }}</p>
+  </div>
+
+  {% if run_result %}
+  <h2>Test Results</h2>
+  <div class="metrics">
+    <div class="metric"><div class="value">{{ run_result.total }}</div><div class="label">Total Tests</div></div>
+    <div class="metric"><div class="value pass">{{ run_result.passed }}</div><div class="label">Passed</div></div>
+    <div class="metric"><div class="value fail">{{ run_result.failed }}</div><div class="label">Failed</div></div>
+    <div class="metric"><div class="value warn">{{ run_result.errored }}</div><div class="label">Errors</div></div>
+    <div class="metric"><div class="value">{{ run_result.skipped }}</div><div class="label">Skipped</div></div>
+    <div class="metric"><div class="value">{{ "%.1f"|format(run_result.duration_seconds) }}s</div><div class="label">Duration</div></div>
+  </div>
+
+  {% if run_result.passed + run_result.failed > 0 %}
+  <div style="background: #f8fafc; border-radius: 8px; padding: 4px; margin: 16px 0;">
+    <div style="background: #16a34a; height: 24px; border-radius: 6px; width: {{ (run_result.passed / run_result.total * 100)|round }}%;"></div>
+  </div>
+  <p style="text-align:center; color: #64748b;">Pass rate: {{ "%.1f"|format(run_result.passed / run_result.total * 100) }}%</p>
+  {% endif %}
+  {% endif %}
+
+  {% if coverage %}
+  <h2>Requirement Coverage</h2>
+  <table>
+    <thead>
+      <tr><th>Requirement</th><th>Description</th><th>Priority</th><th>Tests</th><th>Passed</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+    {% for c in coverage %}
+      <tr>
+        <td><strong>{{ c.req_id }}</strong></td>
+        <td>{{ c.description }}</td>
+        <td>{{ c.priority }}</td>
+        <td>{{ c.test_count }}</td>
+        <td>{{ c.passed }}</td>
+        <td><span class="badge badge-{{ c.status }}">{{ c.status }}</span></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if triage and triage.entries %}
+  <h2>Failure Analysis</h2>
+  {% for e in triage.entries %}
+  <div class="cluster-card">
+    <h3>{{ e.failure_cluster_id }}
+      <span class="severity-{{ e.severity.value }}">{{ e.severity.value | upper }}</span>
+    </h3>
+    <p><strong>Category:</strong> {{ e.root_cause_category.value | replace("_", " ") | title }}</p>
+    <p><strong>Root Cause:</strong> {{ e.root_cause_description }}</p>
+    <p><strong>Recommended Action:</strong> {{ e.recommended_action }}</p>
+    <p><strong>Confidence:</strong> {{ "%.0f"|format(e.confidence * 100) }}%</p>
+    <p><strong>Affected Tests:</strong></p>
+    <ul>
+      {% for tid in e.affected_test_ids %}
+      <li><code>{{ tid }}</code></li>
+      {% endfor %}
+    </ul>
+    {% if e.evidence %}
+    <details>
+      <summary>Evidence</summary>
+      <ul>
+        {% for ev in e.evidence %}
+        <li><code>{{ ev }}</code></li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <footer>
+    <p>Generated by Agentic QA Harness | VPN &amp; L4-L7 Networking</p>
+  </footer>
+</body>
+</html>

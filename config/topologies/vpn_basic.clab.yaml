@@ -1,0 +1,32 @@
+---
+name: vpn-basic
+
+topology:
+  nodes:
+    vpn-gw:
+      kind: linux
+      image: vpn-gateway:latest
+      binds:
+        - configs/vpn-gw:/etc/vpn
+      exec:
+        - ip addr add 10.0.1.1/24 dev eth1
+      ports:
+        - "51820:51820/udp"   # WireGuard
+        - "1194:1194/udp"     # OpenVPN
+        - "500:500/udp"       # IKEv2
+
+    client:
+      kind: linux
+      image: test-client:latest
+      exec:
+        - ip addr add 10.0.1.2/24 dev eth1
+
+    server:
+      kind: linux
+      image: test-server:latest
+      exec:
+        - ip addr add 10.0.2.1/24 dev eth1
+
+  links:
+    - endpoints: ["vpn-gw:eth1", "client:eth1"]
+    - endpoints: ["vpn-gw:eth2", "server:eth1"]

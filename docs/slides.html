@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Harness — Autonomous QA for VPN & L4-L7</title>
+<style>
+/* ── Reset & Base ────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; }
+
+/* ── Slide Container ─────────────────────────────────── */
+.deck { position: relative; width: 100vw; height: 100vh; }
+.slide {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  justify-content: center; padding: 60px 80px;
+  opacity: 0; visibility: hidden; transform: translateX(40px);
+  transition: opacity .45s ease, transform .45s ease, visibility .45s;
+}
+.slide.active { opacity: 1; visibility: visible; transform: translateX(0); }
+.slide.prev   { opacity: 0; visibility: hidden; transform: translateX(-40px); }
+
+/* ── Typography ──────────────────────────────────────── */
+h1 { font-size: 3em; font-weight: 800; line-height: 1.1; letter-spacing: -0.03em; }
+h2 { font-size: 2.2em; font-weight: 700; line-height: 1.2; margin-bottom: 24px; letter-spacing: -0.02em; }
+h3 { font-size: 1.3em; font-weight: 600; margin-bottom: 12px; color: #93c5fd; }
+p, li { font-size: 1.1em; line-height: 1.7; color: #cbd5e1; }
+ul { list-style: none; padding-left: 0; }
+ul li { padding: 6px 0 6px 24px; position: relative; }
+ul li::before { content: ''; position: absolute; left: 0; top: 14px; width: 8px; height: 8px; border-radius: 50%; background: #3b82f6; }
+code { background: #1e293b; padding: 2px 8px; border-radius: 4px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.92em; color: #93c5fd; }
+pre { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px 24px; overflow-x: auto; font-size: 0.85em; line-height: 1.6; }
+pre code { background: none; padding: 0; color: #e2e8f0; }
+
+/* ── Accent Colors ───────────────────────────────────── */
+.accent   { color: #3b82f6; }
+.green    { color: #22c55e; }
+.amber    { color: #f59e0b; }
+.red      { color: #ef4444; }
+.purple   { color: #a78bfa; }
+.cyan     { color: #22d3ee; }
+.dim      { color: #64748b; }
+.tag { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 0.8em; font-weight: 600; }
+.tag-haiku  { background: #14532d; color: #4ade80; }
+.tag-sonnet { background: #1e3a5f; color: #60a5fa; }
+.tag-opus   { background: #4c1d95; color: #c4b5fd; }
+.tag-none   { background: #1e293b; color: #94a3b8; }
+
+/* ── Layout Helpers ──────────────────────────────────── */
+.cols { display: grid; gap: 40px; align-items: start; }
+.cols-2 { grid-template-columns: 1fr 1fr; }
+.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.cols-23 { grid-template-columns: 2fr 3fr; }
+.cols-32 { grid-template-columns: 3fr 2fr; }
+.center { text-align: center; align-items: center; }
+.vstack { display: flex; flex-direction: column; gap: 16px; }
+.badge-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
+/* ── Cards ───────────────────────────────────────────── */
+.card {
+  background: #1e293b; border: 1px solid #334155; border-radius: 16px;
+  padding: 24px; transition: border-color .2s;
+}
+.card:hover { border-color: #3b82f6; }
+.card h3 { margin-bottom: 8px; }
+.card p { font-size: 0.95em; }
+
+/* ── SVG Diagrams ────────────────────────────────────── */
+svg text { font-family: 'Inter', -apple-system, sans-serif; }
+svg .node-rect { rx: 12; ry: 12; stroke-width: 2; }
+svg .arrow { stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+svg .arrow-dim { stroke: #475569; }
+svg .arrow-blue { stroke: #3b82f6; }
+svg .arrow-green { stroke: #22c55e; }
+svg .arrow-amber { stroke: #f59e0b; }
+svg .arrow-red { stroke: #ef4444; }
+svg .label { font-size: 11px; fill: #94a3b8; }
+
+/* ── Navigation ──────────────────────────────────────── */
+.nav {
+  position: fixed; bottom: 24px; right: 32px; display: flex; gap: 10px; z-index: 100;
+  background: rgba(15,23,42,0.85); backdrop-filter: blur(12px);
+  padding: 8px 14px; border-radius: 40px; border: 1px solid #334155;
+}
+.nav button {
+  width: 36px; height: 36px; border: none; border-radius: 50%;
+  background: #334155; color: #e2e8f0; font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: background .15s;
+}
+.nav button:hover { background: #3b82f6; }
+.counter { position: fixed; bottom: 32px; left: 32px; font-size: 0.85em; color: #475569; z-index: 100; font-variant-numeric: tabular-nums; }
+
+/* ── Progress Bar ────────────────────────────────────── */
+.progress { position: fixed; top: 0; left: 0; height: 3px; background: #3b82f6; z-index: 100; transition: width .35s ease; }
+
+/* ── Specific Slide Styles ───────────────────────────── */
+.title-slide { background: radial-gradient(ellipse at 30% 60%, #1e3a5f 0%, #0f172a 70%); }
+.title-slide h1 { font-size: 3.4em; }
+.title-slide .subtitle { font-size: 1.4em; color: #94a3b8; margin-top: 16px; line-height: 1.5; }
+
+.pipeline-stage {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px;
+}
+.pipeline-stage .icon {
+  width: 56px; height: 56px; border-radius: 14px; display: flex; align-items: center;
+  justify-content: center; font-size: 1.5em; font-weight: 700;
+}
+
+/* ── Animate-in Helpers ──────────────────────────────── */
+.slide.active .fade-in { animation: fadeUp .5s ease both; }
+.slide.active .fade-in-d1 { animation-delay: .1s; }
+.slide.active .fade-in-d2 { animation-delay: .2s; }
+.slide.active .fade-in-d3 { animation-delay: .3s; }
+.slide.active .fade-in-d4 { animation-delay: .4s; }
+.slide.active .fade-in-d5 { animation-delay: .5s; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Table ───────────────────────────────────────────── */
+table { width: 100%; border-collapse: collapse; font-size: 0.95em; }
+th { text-align: left; padding: 10px 16px; background: #1e293b; color: #93c5fd; font-weight: 600; border-bottom: 2px solid #334155; }
+td { padding: 10px 16px; border-bottom: 1px solid #1e293b; }
+tr:hover td { background: rgba(59,130,246,0.05); }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="counter" id="counter"></div>
+<div class="nav">
+  <button onclick="prev()" title="Previous (Left Arrow)">&#8592;</button>
+  <button onclick="next()" title="Next (Right Arrow)">&#8594;</button>
+</div>
+
+<!-- SVG Defs (arrowheads) -->
+<svg style="position:absolute;width:0;height:0">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6"/></marker>
+    <marker id="arrowhead-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#22c55e"/></marker>
+    <marker id="arrowhead-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#f59e0b"/></marker>
+    <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#ef4444"/></marker>
+    <marker id="arrowhead-dim" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#475569"/></marker>
+  </defs>
+</svg>
+
+<div class="deck" id="deck">
+
+<!-- ════════════════════════════════════════════════════════
+     SLIDE 1 — TITLE
+     ════════════════════════════════════════════════════════ -->
+<section class="slide title-slide center">
+  <div>
+    <p class="dim" style="font-size:1em;letter-spacing:.15em;text-transform:uppercase;margin-bottom:16px">Agentic QA Harness</p>
+    <h1 class="fade-in">Autonomous QA for<br><span class="accent">VPN & L4-L7</span> Products</h1>
+    <p class="subtitle fade-in fade-in-d1">Drop in a PRD. Get back a complete QA report.<br>No human intervention between stages.</p>
+    <div class="fade-in fade-in-d3" style="margin-top:40px;display:flex;gap:16px;justify-content:center">
+      <span class="tag tag-haiku">Haiku</span>
+      <span class="tag tag-sonnet">Sonnet</span>
+      <span class="tag tag-opus">Opus</span>
+      <span class="dim" style="font-size:.9em;padding-top:4px">Intelligent model routing</span>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SLIDE 2 — THE PROBLEM
+     ════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <h2 class="fade-in">The Problem: <span class="dim">Manual QA Doesn't Scale</span></h2>
+  <div class="cols cols-2" style="margin-top:32px">
+    <div class="fade-in fade-in-d1">
+      <h3>Traditional QA Pipeline</h3>
+      <ul>
+        <li>Analyst reads spec &rarr; <span class="amber">days</span></li>
+        <li>Architect writes test plan &rarr; <span class="amber">days</span></li>
+        <li>Engineer codes automation &rarr; <span class="amber">weeks</span></li>
+        <li>QA lead triages failures &rarr; <span class="amber">hours/run</span></li>
+        <li>Manager reads report &rarr; <span class="amber">hours</span></li>
+      </ul>
+      <p style="margin-top:16px">Every handoff is a bottleneck.<br>Every iteration restarts the cycle.</p>
+    </div>
+    <div class="fade-in fade-in-d2">
+      <h3>Agentic QA Pipeline</h3>
+      <ul>
+        <li>Drop PRD into <code>docs/input/</code></li>
+        <li>Run <code>agent-harness run</code></li>
+        <li>Pipeline executes 7 stages autonomously</li>
+        <li>Open <code>generated/reports/report.html</code></li>
+      </ul>
+      <p style="margin-top:16px"><span class="green">Minutes</span> instead of weeks.<br>Fully traceable from requirement to result.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SLIDE 3 — 5 PILLARS OF AUTONOMY
+     ════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <h2 class="fade-in">Seven Pillars of <span class="accent">Autonomy</span></h2>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:24px">
+    <div class="card fade-in fade-in-d1">
+      <h3>1. Typed Artifacts</h3>
+      <p style="font-size:.9em">Pydantic models as agent contracts. Schema validation guarantees structure.</p>
+    </div>
+    <div class="card fade-in fade-in-d1">
+      <h3>2. Externalized Skills</h3>
+      <p style="font-size:.9em">Domain expertise in <code>skills/*.md</code>. QA engineers contribute via markdown.</p>
+    </div>
+    <div class="card fade-in fade-in-d2">
+      <h3>3. Model Routing</h3>
+      <p style="font-size:.9em">Haiku/Sonnet/Opus per task. Cascade fallback. 30-70% cost savings.</p>
+    </div>
+    <div class="card fade-in fade-in-d2" style="border-color:#22d3ee">
+      <h3 style="color:#22d3ee">4. Gap Analysis</h3>
+      <p style="font-size:.9em">Detects missing APIs &amp; tools. Auto-generates wrappers. Closes the automation loop.</p>
+    </div>
+    <div class="card fade-in fade-in-d3">
+      <h3>5. Self-Healing</h3>
+      <p style="font-size:.9em">Repair agent fixes test code bugs. AST validation gates all generated code.</p>
+    </div>
+    <div class="card fade-in fade-in-d3">
+      <h3>6. Checkpointing</h3>
+      <p style="font-size:.9em">State persists after every stage. Resume from where it stopped.</p>
+    </div>
+    <div class="card fade-in fade-in-d4">
+      <h3>7. Product Overrides</h3>
+      <p style="font-size:.9em"><code>--product acme</code> overlays product-specific skills without forking.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SLIDE 4 — PIPELINE STATE MACHINE (9 stages)
+     ════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <h2 class="fade-in">Pipeline <span class="accent">State Machine</span> <span class="dim" style="font-size:.5em">(9 stages)</span></h2>
+  <div class="fade-in fade-in-d1" style="display:flex;justify-content:center;margin-top:12px">
+    <svg viewBox="0 0 960 440" width="960" height="440">
+      <!-- Row 1: Ingest → Extract → Plan → Gap Analysis → API Enhance -->
+      <g transform="translate(10,50)">
+        <rect x="0" y="0" width="95" height="52" class="node-rect" fill="#14532d" stroke="#22c55e"/>
+        <text x="48" y="24" text-anchor="middle" fill="#4ade80" font-weight="700" font-size="12">INGEST</text>
+        <text x="48" y="40" text-anchor="middle" fill="#86efac" font-size="10">Haiku</text>
+        <line x1="100" y1="26" x2="125" y2="26" class="arrow arrow-blue"/>
+
+        <rect x="130" y="0" width="95" height="52" class="node-rect" fill="#1e3a5f" stroke="#3b82f6"/>
+        <text x="178" y="24" text-anchor="middle" fill="#60a5fa" font-weight="700" font-size="12">EXTRACT</text>
+        <text x="178" y="40" text-anchor="middle" fill="#93c5fd" font-size="10">Sonnet</text>
+        <line x1="230" y1="26" x2="255" y2="26" class="arrow arrow-blue"/>
+
+        <rect x="260" y="0" width="95" height="52" class="node-rect" fill="#4c1d95" stroke="#8b5cf6"/>
+        <text x="308" y="24" text-anchor="middle" fill="#c4b5fd" font-weight="700" font-size="12">PLAN</text>
+        <text x="308" y="40" text-anchor="middle" fill="#ddd6fe" font-size="10">Opus</text>
+        <line x1="360" y1="26" x2="385" y2="26" class="arrow arrow-blue"/>
+
+        <!-- GAP ANALYSIS (new) -->
+        <rect x="390" y="0" width="115" height="52" class="node-rect" fill="#1e3a5f" stroke="#22d3ee" stroke-width="2"/>
+        <text x="448" y="20" text-anchor="middle" fill="#22d3ee" font-weight="700" font-size="11">GAP ANALYSIS</text>
+        <text x="448" y="34" text-anchor="middle" fill="#67e8f9" font-size="9">Sonnet</text>
+        <text x="448" y="46" text-anchor="middle" fill="#475569" font-size="8">detect missing APIs</text>
+        <line x1="510" y1="26" x2="535" y2="26" class="arrow" stroke="#22d3ee" marker-end="url(#arrowhead)"/>
+
+        <!-- API ENHANCE (new) -->
+        <rect x="540" y="0" width="115" height="52" class="node-rect" fill="#1e3a5f" stroke="#22d3ee" stroke-width="2"/>
+        <text x="598" y="20" text-anchor="middle" fill="#22d3ee" font-weight="700" font-size="11">API ENHANCE</text>
+        <text x="598" y="34" text-anchor="middle" fill="#67e8f9" font-size="9">Sonnet</text>
+        <text x="598" y="46" text-anchor="middle" fill="#475569" font-size="8">generate wrappers</text>
+        <line x1="660" y1="26" x2="685" y2="26" class="arrow arrow-blue"/>
+
+        <!-- CODEGEN -->
+        <rect x="690" y="0" width="95" height="52" class="node-rect" fill="#1e3a5f" stroke="#3b82f6"/>
+        <text x="738" y="24" text-anchor="middle" fill="#60a5fa" font-weight="700" font-size="12">CODEGEN</text>
+        <text x="738" y="40" text-anchor="middle" fill="#93c5fd" font-size="10">Sonnet</text>
+        <line x1="790" y1="26" x2="815" y2="26" class="arrow arrow-blue"/>
+
+        <!-- EXECUTE -->
+        <rect x="820" y="0" width="95" height="52" class="node-rect" fill="#1e293b" stroke="#64748b"/>
+        <text x="868" y="24" text-anchor="middle" fill="#94a3b8" font-weight="700" font-size="12">EXECUTE</text>
+        <text x="868" y="40" text-anchor="middle" fill="#64748b" font-size="10">No LLM</text>
+      </g>
+
+      <!-- AST validation annotations -->
+      <g transform="translate(10,108)">
+        <text x="598" y="0" text-anchor="middle" fill="#f59e0b" font-size="8">ast.parse &#10003;</text>
+        <text x="738" y="0" text-anchor="middle" fill="#f59e0b" font-size="8">ast.parse &#10003;</text>
+      </g>
+
+      <!-- Row 2: Repair + Triage + Report + Done -->
+      <g transform="translate(10,210)">
+        <!-- REPAIR (conditional) -->
+        <rect x="690" y="0" width="110" height="52" class="node-rect" fill="#1e3a5f" stroke="#f59e0b" stroke-dasharray="6,4"/>
+        <text x="745" y="22" text-anchor="middle" fill="#fbbf24" font-weight="700" font-size="12">REPAIR</text>
+        <text x="745" y="38" text-anchor="middle" fill="#fcd34d" font-size="9">Sonnet (test_bug)</text>
+        <text x="745" y="48" text-anchor="middle" fill="#f59e0b" font-size="8">ast.parse &#10003;</text>
+
+        <!-- Repair loop back to Execute -->
+        <path d="M 805,0 L 805,-30 L 868,-30 L 868,-58" stroke="#f59e0b" stroke-width="2" fill="none" marker-end="url(#arrowhead-amber)"/>
+        <text x="842" y="-34" fill="#f59e0b" font-size="9">retry</text>
+
+        <!-- Execute down to Repair -->
+        <path d="M 850,-58 L 850,-10 L 805,-10 L 805,0" stroke="#f59e0b" stroke-width="1.5" fill="none" marker-end="url(#arrowhead-amber)" stroke-dasharray="5,3"/>
+        <text x="830" y="-14" fill="#f59e0b" font-size="8">test_bug</text>
+
+        <!-- Execute down to Triage -->
+        <path d="M 868,-58 L 868,26 L 620,26" stroke="#3b82f6" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+        <text x="770" y="18" fill="#94a3b8" font-size="9">failures</text>
+
+        <!-- TRIAGE -->
+        <rect x="505" y="0" width="110" height="52" class="node-rect" fill="#4c1d95" stroke="#8b5cf6"/>
+        <text x="560" y="24" text-anchor="middle" fill="#c4b5fd" font-weight="700" font-size="12">TRIAGE</text>
+        <text x="560" y="40" text-anchor="middle" fill="#ddd6fe" font-size="10">Opus</text>
+        <line x1="500" y1="26" x2="440" y2="26" class="arrow arrow-blue"/>
+
+        <!-- REPORT -->
+        <rect x="325" y="0" width="110" height="52" class="node-rect" fill="#14532d" stroke="#22c55e"/>
+        <text x="380" y="24" text-anchor="middle" fill="#4ade80" font-weight="700" font-size="12">REPORT</text>
+        <text x="380" y="40" text-anchor="middle" fill="#86efac" font-size="10">Haiku</text>
+        <line x1="320" y1="26" x2="265" y2="26" class="arrow" stroke="#22c55e" marker-end="url(#arrowhead-green)"/>
+
+        <!-- DONE -->
+        <rect x="175" y="3" width="85" height="46" rx="23" ry="23" fill="#22c55e" stroke="none"/>
+        <text x="218" y="31" text-anchor="middle" fill="#052e16" font-weight="700" font-size="13">DONE</text>
+      </g>
+
+      <!-- Checkpoint markers -->
+      <g transform="translate(10,128)">
+        <text x="48" y="0" text-anchor="middle" fill="#475569" font-size="8">&#9679;</text>
+        <text x="178" y="0" text-anchor="middle" fill="#475569" font-size="8">&#9679;</text>
+        <text x="308" y="0" text-anchor="middle" fill="#475569" font-size="8">&#9679;</text>
+        <text x="448" y="0" text-anchor="middle" fill="#475569" font-size="8">&#9679;</text>
+        <text x="598" y="0" text-anchor="middle" fill="#475569" font-size="8">&#9679;</text>
+        <text x="738" y="0" text-anchor="middle" fill="#475569" font-size="8">&#9679;</text>
+        <text x="868" y="0" text-anchor="middle" fill="#475569" font-size="8">&#9679;</text>
+        <text x="480" y="14" text-anchor="middle" fill="#475569" font-size="9" font-style="italic">&#9679; = checkpoint (state persisted to disk, resumable)</text>
+      </g>
+
+      <!-- Legend -->
+      <g transform="translate(10,390)">
+        <rect x="0" y="0" width="12" height="12" rx="3" fill="#14532d" stroke="#22c55e" stroke-width="1.5"/>
+        <text x="18" y="10" fill="#94a3b8" font-size="10">Haiku ($)</text>
+        <rect x="90" y="0" width="12" height="12" rx="3" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="108" y="10" fill="#94a3b8" font-size="10">Sonnet ($$)</text>
+        <rect x="195" y="0" width="12" height="12" rx="3" fill="#4c1d95" stroke="#8b5cf6" stroke-width="1.5"/>
+        <text x="213" y="10" fill="#94a3b8" font-size="10">Opus ($$$)</text>
+        <rect x="290" y="0" width="12" height="12" rx="3" fill="#1e293b" stroke="#64748b" stroke-width="1.5"/>
+        <text x="308" y="10" fill="#94a3b8" font-size="10">No LLM</text>
+        <rect x="375" y="0" width="12" height="12" rx="3" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="393" y="10" fill="#94a3b8" font-size="10">Conditional</text>
+        <rect x="480" y="0" width="12" height="12" rx="3" fill="#1e3a5f" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="498" y="10" fill="#94a3b8" font-size="10">Gap Analysis (new)</text>
+        <text x="660" y="10" fill="#f59e0b" font-size="10">ast.parse &#10003; = syntax validation gate</text>
+      </g>
+
+      <!-- Gap types callout -->
+      <g transform="translate(10,310)">
+        <rect x="0" y="0" width="500" height="65" rx="10" fill="#0c4a6e" stroke="#22d3ee" stroke-width="1" opacity="0.5"/>
+        <text x="16" y="18" fill="#22d3ee" font-weight="600" font-size="11">Gap Analysis detects 5 types:</text>
+        <text x="16" y="33" fill="#67e8f9" font-size="10">missing_method &bull; missing_parameter &bull; missing_return_field</text>
+        <text x="16" y="48" fill="#67e8f9" font-size="10">missing_tool (new CLI tool needed) &bull; missing_module (new .py file needed)</text>
+        <text x="16" y="60" fill="#475569" font-size="9">API Enhance creates new modules or extends existing ones &rarr; regenerates API skills &rarr; CodeGen sees updated API</text>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SLIDE 5 — ARTIFACT FLOW
+     ════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <h2 class="fade-in">Typed <span class="accent">Artifact Flow</span></h2>
+  <div class="fade-in fade-in-d1" style="display:flex;justify-content:center;margin-top:16px">
+    <svg viewBox="0 0 900 400" width="900" height="400">
+      <!-- Document shapes -->
+      <g>
+        <!-- PRD -->
+        <rect x="30" y="40" width="120" height="55" rx="8" fill="#334155" stroke="#64748b" stroke-width="1.5"/>
+        <text x="90" y="63" text-anchor="middle" fill="#e2e8f0" font-weight="600" font-size="13">PRD / Spec</text>
+        <text x="90" y="80" text-anchor="middle" fill="#64748b" font-size="10">.pdf .md .html</text>
+
+        <line x1="155" y1="67" x2="195" y2="67" class="arrow arrow-blue"/>
+
+        <!-- IngestedDocument -->
+        <rect x="200" y="35" width="140" height="65" rx="10" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="270" y="58" text-anchor="middle" fill="#93c5fd" font-weight="600" font-size="12">IngestedDocument[]</text>
+        <text x="270" y="75" text-anchor="middle" fill="#475569" font-size="10">doc_id, sections[]</text>
+        <text x="270" y="88" text-anchor="middle" fill="#475569" font-size="10">metadata</text>
+
+        <line x1="345" y1="67" x2="385" y2="67" class="arrow arrow-blue"/>
+
+        <!-- RequirementSet -->
+        <rect x="390" y="35" width="150" height="65" rx="10" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="465" y="55" text-anchor="middle" fill="#93c5fd" font-weight="600" font-size="12">RequirementSet</text>
+        <text x="465" y="72" text-anchor="middle" fill="#475569" font-size="10">req_id, category, priority</text>
+        <text x="465" y="85" text-anchor="middle" fill="#475569" font-size="10">acceptance_criteria[]</text>
+
+        <line x1="545" y1="67" x2="585" y2="67" class="arrow arrow-blue"/>
+
+        <!-- TestPlan -->
+        <rect x="590" y="25" width="150" height="85" rx="10" fill="#1e293b" stroke="#8b5cf6" stroke-width="1.5"/>
+        <text x="665" y="48" text-anchor="middle" fill="#c4b5fd" font-weight="600" font-size="12">TestPlan</text>
+        <text x="665" y="65" text-anchor="middle" fill="#475569" font-size="10">suites[].test_cases[]</text>
+        <text x="665" y="78" text-anchor="middle" fill="#475569" font-size="10">coverage_matrix</text>
+        <text x="665" y="91" text-anchor="middle" fill="#475569" font-size="10">traced_req_ids[]</text>
+
+        <!-- Arrow down to pytest files -->
+        <line x1="665" y1="115" x2="665" y2="155" class="arrow arrow-blue"/>
+
+        <!-- pytest files -->
+        <rect x="600" y="160" width="130" height="50" rx="8" fill="#334155" stroke="#64748b" stroke-width="1.5"/>
+        <text x="665" y="182" text-anchor="middle" fill="#e2e8f0" font-weight="600" font-size="12">pytest files</text>
+        <text x="665" y="198" text-anchor="middle" fill="#64748b" font-size="10">test_*.py + conftest</text>
+
+        <!-- Arrow down to TestRunResult -->
+        <line x1="665" y1="215" x2="665" y2="255" class="arrow arrow-blue"/>
+
+        <!-- TestRunResult -->
+        <rect x="590" y="260" width="150" height="75" rx="10" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="665" y="283" text-anchor="middle" fill="#93c5fd" font-weight="600" font-size="12">TestRunResult</text>
+        <text x="665" y="300" text-anchor="middle" fill="#475569" font-size="10">passed / failed / errored</text>
+        <text x="665" y="313" text-anchor="middle" fill="#475569" font-size="10">per-test stdout, traceback</text>
+
+        <line x1="585" y1="297" x2="530" y2="297" class="arrow arrow-blue"/>
+
+        <!-- TriageReport -->
+        <rect x="370" y="260" width="155" height="75" rx="10" fill="#1e293b" stroke="#8b5cf6" stroke-width="1.5"/>
+        <text x="448" y="283" text-anchor="middle" fill="#c4b5fd" font-weight="600" font-size="12">TriageReport</text>
+        <text x="448" y="300" text-anchor="middle" fill="#475569" font-size="10">failure_clusters[]</text>
+        <text x="448" y="313" text-anchor="middle" fill="#475569" font-size="10">root_cause, severity, action</text>
+
+        <line x1="365" y1="297" x2="310" y2="297" class="arrow" stroke="#22c55e" marker-end="url(#arrowhead-green)"/>
+
+        <!-- Report -->
+        <rect x="160" y="265" width="145" height="65" rx="10" fill="#14532d" stroke="#22c55e" stroke-width="1.5"/>
+        <text x="233" y="288" text-anchor="middle" fill="#4ade80" font-weight="600" font-size="12">HTML Report</text>
+        <text x="233" y="305" text-anchor="middle" fill="#86efac" font-size="10">Coverage matrix</text>
+        <text x="233" y="318" text-anchor="middle" fill="#86efac" font-size="10">Failure analysis</text>
+
+        <!-- Traceability arrow spanning the whole flow -->
+        <line x1="90" y1="100" x2="90" y2="370" stroke="#475569" stroke-width="1" stroke-dasharray="4,4"/>
+        <line x1="90" y1="370" x2="750" y2="370" stroke="#475569" stroke-width="1" stroke-dasharray="4,4"/>
+        <text x="420" y="390" text-anchor="middle" fill="#64748b" font-size="11" font-style="italic">Full traceability: every test result maps back to requirement IDs</text>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SLIDE 5b — SKILLS ARCHITECTURE
+     ════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <h2 class="fade-in">Skills <span class="accent">Architecture</span></h2>
+  <div class="cols cols-23" style="margin-top:20px">
+    <div class="fade-in fade-in-d1 vstack" style="gap:12px">
+      <h3>How It Works</h3>
+      <ul style="font-size:.9em">
+        <li>Domain expertise lives in <code>skills/*.md</code> with YAML frontmatter</li>
+        <li><code>applies_to: [plan, codegen]</code> controls which agents get the skill</li>
+        <li><strong>Progressive loading</strong>: metadata first (~50 tokens), content on demand</li>
+        <li><strong>Token-budgeted</strong>: high-priority skills load first, low-priority dropped if tight</li>
+        <li><strong>API skills auto-generated</strong> from Python source via AST at each run</li>
+        <li><code>--product acme</code> overlays product-specific skills</li>
+      </ul>
+      <div class="card" style="padding:14px">
+        <pre style="font-size:.75em;margin:0"><code>---
+name: vpn-protocols
+description: VPN protocol test expertise
+domain: vpn
+<span class="accent">applies_to</span>: [plan, codegen, triage]
+<span class="amber">priority</span>: 1
+---
+
+## WireGuard Testing
+- Handshake within 5 seconds
+- ChaCha20-Poly1305 in capture
+- Test persistent keepalive...</code></pre>
+      </div>
+    </div>
+    <div class="fade-in fade-in-d2">
+      <svg viewBox="0 0 480 420" width="480" height="420">
+        <!-- Skills directory tree -->
+        <text x="10" y="20" fill="#93c5fd" font-weight="700" font-size="13">skills/</text>
+
+        <!-- domains -->
+        <text x="30" y="45" fill="#64748b" font-size="11">domains/</text>
+        <rect x="50" y="52" width="145" height="22" rx="4" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1"/>
+        <text x="58" y="67" fill="#60a5fa" font-size="10">vpn-protocols.md</text>
+        <rect x="50" y="78" width="145" height="22" rx="4" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1"/>
+        <text x="58" y="93" fill="#60a5fa" font-size="10">l4-load-balancing.md</text>
+        <rect x="50" y="104" width="145" height="22" rx="4" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1"/>
+        <text x="58" y="119" fill="#60a5fa" font-size="10">l7-application.md</text>
+
+        <!-- test-patterns -->
+        <text x="30" y="148" fill="#64748b" font-size="11">test-patterns/</text>
+        <rect x="50" y="155" width="145" height="22" rx="4" fill="#14532d" stroke="#22c55e" stroke-width="1"/>
+        <text x="58" y="170" fill="#4ade80" font-size="10">security-testing.md</text>
+        <rect x="50" y="181" width="145" height="22" rx="4" fill="#14532d" stroke="#22c55e" stroke-width="1"/>
+        <text x="58" y="196" fill="#4ade80" font-size="10">performance-testing.md</text>
+        <rect x="50" y="207" width="145" height="22" rx="4" fill="#14532d" stroke="#22c55e" stroke-width="1"/>
+        <text x="58" y="222" fill="#4ade80" font-size="10">failover-testing.md</text>
+
+        <!-- triage -->
+        <text x="30" y="251" fill="#64748b" font-size="11">triage/</text>
+        <rect x="50" y="258" width="165" height="22" rx="4" fill="#4c1d95" stroke="#8b5cf6" stroke-width="1"/>
+        <text x="58" y="273" fill="#c4b5fd" font-size="10">diagnostic-framework.md</text>
+
+        <!-- api-reference -->
+        <text x="30" y="302" fill="#64748b" font-size="11">api-reference/ <tspan fill="#f59e0b" font-size="9">(auto-gen)</tspan></text>
+        <rect x="50" y="309" width="120" height="22" rx="4" fill="#1e293b" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="58" y="324" fill="#fbbf24" font-size="10">vpn-api.md</text>
+        <rect x="50" y="335" width="120" height="22" rx="4" fill="#1e293b" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="58" y="350" fill="#fbbf24" font-size="10">traffic-api.md</text>
+
+        <!-- products -->
+        <text x="30" y="382" fill="#64748b" font-size="11">products/acme/</text>
+        <rect x="50" y="389" width="145" height="22" rx="4" fill="#450a0a" stroke="#ef4444" stroke-width="1"/>
+        <text x="58" y="404" fill="#fca5a5" font-size="10">product-context.md</text>
+
+        <!-- Arrows to agents -->
+        <text x="280" y="20" fill="#93c5fd" font-weight="700" font-size="13">Agents</text>
+
+        <!-- Plan agent -->
+        <rect x="280" y="55" width="90" height="40" rx="8" fill="#4c1d95" stroke="#8b5cf6" stroke-width="1.5"/>
+        <text x="325" y="72" text-anchor="middle" fill="#c4b5fd" font-weight="600" font-size="11">Plan</text>
+        <text x="325" y="85" text-anchor="middle" fill="#94a3b8" font-size="9">Opus</text>
+
+        <!-- CodeGen agent -->
+        <rect x="280" y="110" width="90" height="40" rx="8" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="325" y="127" text-anchor="middle" fill="#60a5fa" font-weight="600" font-size="11">CodeGen</text>
+        <text x="325" y="140" text-anchor="middle" fill="#94a3b8" font-size="9">Sonnet</text>
+
+        <!-- Triage agent -->
+        <rect x="280" y="260" width="90" height="40" rx="8" fill="#4c1d95" stroke="#8b5cf6" stroke-width="1.5"/>
+        <text x="325" y="277" text-anchor="middle" fill="#c4b5fd" font-weight="600" font-size="11">Triage</text>
+        <text x="325" y="290" text-anchor="middle" fill="#94a3b8" font-size="9">Opus</text>
+
+        <!-- Extract agent -->
+        <rect x="390" y="55" width="80" height="40" rx="8" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="430" y="72" text-anchor="middle" fill="#60a5fa" font-weight="600" font-size="11">Extract</text>
+        <text x="430" y="85" text-anchor="middle" fill="#94a3b8" font-size="9">Sonnet</text>
+
+        <!-- Arrows: skills → agents -->
+        <line x1="200" y1="68" x2="275" y2="68" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowhead)"/>
+        <line x1="200" y1="90" x2="240" y2="125" stroke="#3b82f6" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrowhead)"/>
+        <line x1="200" y1="170" x2="275" y2="78" stroke="#22c55e" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrowhead)"/>
+        <line x1="220" y1="269" x2="275" y2="275" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowhead)"/>
+        <line x1="175" y1="320" x2="275" y2="135" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrowhead-amber)"/>
+
+        <!-- Prompt composition -->
+        <rect x="270" y="345" width="200" height="55" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+        <text x="370" y="365" text-anchor="middle" fill="#e2e8f0" font-size="10" font-weight="600">Composed System Prompt</text>
+        <text x="370" y="380" text-anchor="middle" fill="#64748b" font-size="9">[core role] + [matched skills]</text>
+        <text x="370" y="392" text-anchor="middle" fill="#64748b" font-size="9">within token budget</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SLIDE 6 — MODEL ROUTING
+     ════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <h2 class="fade-in">Model Routing & <span class="accent">Cost Optimization</span></h2>
+  <div class="cols cols-32" style="margin-top:24px">
+    <div class="fade-in fade-in-d1">
+      <table>
+        <thead><tr><th>Task</th><th>Model</th><th>$/1K in</th></tr></thead>
+        <tbody>
+          <tr><td>Document parsing</td><td><span class="tag tag-haiku">Haiku</span></td><td class="green">$0.001</td></tr>
+          <tr><td>Requirement extraction</td><td><span class="tag tag-sonnet">Sonnet</span></td><td class="amber">$0.003</td></tr>
+          <tr><td style="font-weight:600">Test plan generation</td><td><span class="tag tag-opus">Opus</span></td><td class="red">$0.015</td></tr>
+          <tr><td>Test code generation</td><td><span class="tag tag-sonnet">Sonnet</span></td><td class="amber">$0.003</td></tr>
+          <tr><td>Failure classification</td><td><span class="tag tag-haiku">Haiku</span></td><td class="green">$0.001</td></tr>
+          <tr><td style="font-weight:600">Root cause analysis</td><td><span class="tag tag-opus">Opus</span></td><td class="red">$0.015</td></tr>
+          <tr><td>Report summary</td><td><span class="tag tag-haiku">Haiku</span></td><td class="green">$0.001</td></tr>
+          <tr><td>Test repair</td><td><span class="tag tag-sonnet">Sonnet</span></td><td class="amber">$0.003</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="fade-in fade-in-d2 vstack">
+      <div class="card">
+        <h3>Cascade Fallback</h3>
+        <p style="font-size:.95em">If schema validation fails:</p>
+        <pre><code>Haiku <span class="amber">&rarr;</span> Sonnet <span class="amber">&rarr;</span> Opus
+  fail?     fail?     <span class="red">CascadeExhaustedError</span></code></pre>
+      </div>
+      <div class="card">
+        <h3>Budget Enforcement</h3>
+        <p style="font-size:.95em">Every call logged to <code>token_usage.jsonl</code>.</p>
+        <p style="font-size:.95em"><span class="amber">Warning</span> at 80% &bull; <span class="red">Hard stop</span> at $50 (configurable)</p>
+      </div>
+      <div class="card">
+        <h3>Provider Abstraction</h3>
+        <pre><code>class LLMProvider(ABC):
+    async def call(model_id, system,
+      messages, max_tokens) -> LLMResponse</code></pre>
+        <p style="font-size:.85em;margin-top:8px">Swap in OpenAI, Ollama, or vLLM by implementing one method.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SLIDE 7 — SELF-HEALING REPAIR STATE MACHINE
+     ════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <h2 class="fade-in">Self-Healing <span class="accent">Repair Loop</span></h2>
+  <div class="cols cols-23" style="margin-top:24px">
+    <div class="fade-in fade-in-d1 vstack">
+      <h3>Classification Heuristics</h3>
+      <ul style="font-size:.95em">
+        <li><code>ImportError</code> &rarr; <span class="amber">test_bug</span></li>
+        <li><code>SyntaxError</code> &rarr; <span class="amber">test_bug</span></li>
+        <li><code>NameError</code> &rarr; <span class="amber">test_bug</span></li>
+        <li><code>fixture</code> in trace &rarr; <span class="amber">test_bug</span></li>
+        <li><code>AssertionError</code> (product wrong) &rarr; <span class="purple">product_bug</span></li>
+        <li><code>ConnectionRefused</code> &rarr; <span class="red">infra_issue</span></li>
+      </ul>
+      <p style="margin-top:12px;font-size:.9em">Only <span class="amber">test_bug</span> triggers repair.<br>Everything else goes straight to triage.</p>
+    </div>
+    <div class="fade-in fade-in-d2" style="display:flex;justify-content:center">
+      <svg viewBox="0 0 520 380" width="520" height="380">
+        <!-- Execute -->
+        <rect x="180" y="10" width="160" height="50" rx="12" fill="#1e293b" stroke="#64748b" stroke-width="2"/>
+        <text x="260" y="40" text-anchor="middle" fill="#e2e8f0" font-weight="700" font-size="14">EXECUTE</text>
+
+        <!-- Arrow down to Classify -->
+        <line x1="260" y1="65" x2="260" y2="95" class="arrow arrow-blue"/>
+
+        <!-- Classify diamond -->
+        <polygon points="260,100 340,140 260,180 180,140" fill="#1e293b" stroke="#3b82f6" stroke-width="2"/>
+        <text x="260" y="137" text-anchor="middle" fill="#93c5fd" font-size="11" font-weight="600">Classify</text>
+        <text x="260" y="151" text-anchor="middle" fill="#93c5fd" font-size="11" font-weight="600">failure</text>
+
+        <!-- test_bug arrow left to Repair -->
+        <line x1="175" y1="140" x2="120" y2="140" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrowhead-amber)"/>
+        <text x="148" y="132" class="label" fill="#f59e0b">test_bug</text>
+
+        <!-- Repair box -->
+        <rect x="10" y="115" width="110" height="50" rx="12" fill="#1e3a5f" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6,3"/>
+        <text x="65" y="138" text-anchor="middle" fill="#fbbf24" font-weight="700" font-size="13">REPAIR</text>
+        <text x="65" y="153" text-anchor="middle" fill="#fcd34d" font-size="10">Sonnet</text>
+
+        <!-- Repair arrow up back to Execute (retry) -->
+        <path d="M 65,110 L 65,35 L 175,35" stroke="#f59e0b" stroke-width="2" fill="none" marker-end="url(#arrowhead-amber)"/>
+        <text x="100" y="22" fill="#f59e0b" font-size="10" font-weight="600">retry (max 2x)</text>
+
+        <!-- Repair arrow down to "still failing" -->
+        <line x1="65" y1="170" x2="65" y2="230" stroke="#ef4444" stroke-width="2" marker-end="url(#arrowhead-red)"/>
+        <text x="95" y="205" fill="#ef4444" font-size="10">still failing</text>
+
+        <!-- product_bug / infra arrow right to Triage -->
+        <line x1="345" y1="140" x2="400" y2="140" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrowhead)"/>
+        <text x="370" y="130" class="label" fill="#94a3b8" font-size="10">other</text>
+
+        <!-- Triage box (right) -->
+        <rect x="405" y="115" width="105" height="50" rx="12" fill="#4c1d95" stroke="#8b5cf6" stroke-width="2"/>
+        <text x="458" y="138" text-anchor="middle" fill="#c4b5fd" font-weight="700" font-size="13">TRIAGE</text>
+        <text x="458" y="153" text-anchor="middle" fill="#ddd6fe" font-size="10">Opus</text>
+
+        <!-- Merge: still-failing also goes to Triage -->
+        <path d="M 65,240 L 65,280 L 458,280 L 458,170" stroke="#ef4444" stroke-width="2" fill="none" marker-end="url(#arrowhead-red)"/>
+
+        <!-- All passed path -->
+        <line x1="260" y1="185" x2="260" y2="235" stroke="#22c55e" stroke-width="2" marker-end="url(#arrowhead-green)"/>
+        <text x="295" y="215" fill="#22c55e" font-size="10" font-weight="600">all passed</text>
+
+        <!-- Report -->
+        <rect x="200" y="240" width="120" height="45" rx="12" fill="#14532d" stroke="#22c55e" stroke-width="2"/>
+        <text x="260" y="268" text-anchor="middle" fill="#4ade80" font-weight="700" font-size="13">REPORT</text>
+
+        <!-- Triage arrow to report -->
+        <path d="M 458,170 L 458,262 L 325,262" stroke="#3b82f6" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SLIDE 8 — NETWORK TOPOLOGIES
+     ════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <h2 class="fade-in">Containerlab <span class="accent">Topologies</span></h2>
+  <div class="cols cols-2" style="margin-top:20px;gap:24px">
+    <!-- VPN Basic -->
+    <div class="card fade-in fade-in-d1">
+      <h3>vpn_basic</h3>
+      <svg viewBox="0 0 360 100" width="360" height="100">
+        <rect x="10" y="30" width="80" height="40" rx="8" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="50" y="54" text-anchor="middle" fill="#93c5fd" font-size="12" font-weight="600">client</text>
+        <line x1="95" y1="50" x2="130" y2="50" class="arrow arrow-blue"/>
+        <rect x="135" y="20" width="90" height="60" rx="8" fill="#4c1d95" stroke="#8b5cf6" stroke-width="1.5"/>
+        <text x="180" y="46" text-anchor="middle" fill="#c4b5fd" font-size="12" font-weight="600">vpn-gw</text>
+        <text x="180" y="62" text-anchor="middle" fill="#94a3b8" font-size="9">:51820 :1194 :500</text>
+        <line x1="230" y1="50" x2="265" y2="50" class="arrow arrow-blue"/>
+        <rect x="270" y="30" width="80" height="40" rx="8" fill="#14532d" stroke="#22c55e" stroke-width="1.5"/>
+        <text x="310" y="54" text-anchor="middle" fill="#4ade80" font-size="12" font-weight="600">server</text>
+      </svg>
+    </div>
+
+    <!-- L4 LB -->
+    <div class="card fade-in fade-in-d2">
+      <h3>l4_lb</h3>
+      <svg viewBox="0 0 360 120" width="360" height="120">
+        <rect x="10" y="40" width="70" height="35" rx="8" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="45" y="62" text-anchor="middle" fill="#93c5fd" font-size="11" font-weight="600">client</text>
+        <line x1="85" y1="57" x2="120" y2="57" class="arrow arrow-blue"/>
+        <rect x="125" y="30" width="70" height="55" rx="8" fill="#4c1d95" stroke="#8b5cf6" stroke-width="1.5"/>
+        <text x="160" y="54" text-anchor="middle" fill="#c4b5fd" font-size="11" font-weight="600">lb</text>
+        <text x="160" y="70" text-anchor="middle" fill="#94a3b8" font-size="9">:80 :443</text>
+        <line x1="200" y1="45" x2="240" y2="20" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <line x1="200" y1="52" x2="240" y2="42" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <line x1="200" y1="62" x2="240" y2="72" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <line x1="200" y1="70" x2="240" y2="95" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <rect x="245" y="5" width="90" height="25" rx="6" fill="#14532d" stroke="#22c55e" stroke-width="1"/>
+        <text x="290" y="21" text-anchor="middle" fill="#4ade80" font-size="10">backend1</text>
+        <rect x="245" y="33" width="90" height="25" rx="6" fill="#14532d" stroke="#22c55e" stroke-width="1"/>
+        <text x="290" y="49" text-anchor="middle" fill="#4ade80" font-size="10">backend2</text>
+        <rect x="245" y="61" width="90" height="25" rx="6" fill="#14532d" stroke="#22c55e" stroke-width="1"/>
+        <text x="290" y="77" text-anchor="middle" fill="#4ade80" font-size="10">backend3</text>
+        <rect x="245" y="89" width="90" height="25" rx="6" fill="#14532d" stroke="#22c55e" stroke-width="1"/>
+        <text x="290" y="105" text-anchor="middle" fill="#4ade80" font-size="10">backend4</text>
+      </svg>
+    </div>
+
+    <!-- L7 Proxy -->
+    <div class="card fade-in fade-in-d3">
+      <h3>l7_proxy</h3>
+      <svg viewBox="0 0 360 100" width="360" height="100">
+        <rect x="10" y="30" width="70" height="35" rx="8" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="45" y="52" text-anchor="middle" fill="#93c5fd" font-size="11" font-weight="600">client</text>
+        <line x1="85" y1="47" x2="120" y2="47" class="arrow arrow-blue"/>
+        <rect x="125" y="18" width="80" height="60" rx="8" fill="#4c1d95" stroke="#8b5cf6" stroke-width="1.5"/>
+        <text x="165" y="42" text-anchor="middle" fill="#c4b5fd" font-size="11" font-weight="600">proxy</text>
+        <text x="165" y="58" text-anchor="middle" fill="#94a3b8" font-size="8">TLS + WAF + routing</text>
+        <line x1="210" y1="38" x2="245" y2="25" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <line x1="210" y1="55" x2="245" y2="68" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <rect x="250" y="10" width="95" height="30" rx="6" fill="#14532d" stroke="#22c55e" stroke-width="1"/>
+        <text x="298" y="29" text-anchor="middle" fill="#4ade80" font-size="10">api-backend</text>
+        <rect x="250" y="55" width="95" height="30" rx="6" fill="#14532d" stroke="#22c55e" stroke-width="1"/>
+        <text x="298" y="74" text-anchor="middle" fill="#4ade80" font-size="10">static-backend</text>
+        <text x="232" y="18" fill="#64748b" font-size="8">/api/*</text>
+        <text x="232" y="78" fill="#64748b" font-size="8">/static/*</text>
+      </svg>
+    </div>
+
+    <!-- Full Stack -->
+    <div class="card fade-in fade-in-d4">
+      <h3>full_stack</h3>
+      <svg viewBox="0 0 360 110" width="360" height="110">
+        <rect x="5" y="20" width="50" height="25" rx="5" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1"/>
+        <text x="30" y="36" text-anchor="middle" fill="#93c5fd" font-size="9">client1</text>
+        <rect x="5" y="52" width="50" height="25" rx="5" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1"/>
+        <text x="30" y="68" text-anchor="middle" fill="#93c5fd" font-size="9">client2</text>
+        <line x1="60" y1="33" x2="85" y2="45" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <line x1="60" y1="64" x2="85" y2="52" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+        <rect x="88" y="30" width="55" height="35" rx="6" fill="#4c1d95" stroke="#8b5cf6" stroke-width="1.5"/>
+        <text x="116" y="52" text-anchor="middle" fill="#c4b5fd" font-size="9" font-weight="600">vpn-gw</text>
+        <line x1="148" y1="47" x2="172" y2="47" class="arrow arrow-blue"/>
+
+        <rect x="175" y="33" width="42" height="30" rx="6" fill="#4c1d95" stroke="#8b5cf6" stroke-width="1.5"/>
+        <text x="196" y="52" text-anchor="middle" fill="#c4b5fd" font-size="9" font-weight="600">lb</text>
+        <line x1="222" y1="47" x2="243" y2="47" class="arrow arrow-blue"/>
+
+        <rect x="246" y="28" width="50" height="40" rx="6" fill="#4c1d95" stroke="#8b5cf6" stroke-width="1.5"/>
+        <text x="271" y="45" text-anchor="middle" fill="#c4b5fd" font-size="9" font-weight="600">proxy</text>
+        <text x="271" y="57" text-anchor="middle" fill="#94a3b8" font-size="7">WAF</text>
+
+        <line x1="300" y1="38" x2="318" y2="17" stroke="#22c55e" stroke-width="1" marker-end="url(#arrowhead-green)"/>
+        <line x1="300" y1="43" x2="318" y2="38" stroke="#22c55e" stroke-width="1" marker-end="url(#arrowhead-green)"/>
+        <line x1="300" y1="53" x2="318" y2="63" stroke="#22c55e" stroke-width="1" marker-end="url(#arrowhead-green)"/>
+        <line x1="300" y1="58" x2="318" y2="85" stroke="#22c55e" stroke-width="1" marker-end="url(#arrowhead-green)"/>
+
+        <rect x="320" y="5" width="35" height="22" rx="4" fill="#14532d" stroke="#22c55e" stroke-width="1"/>
+        <text x="338" y="19" text-anchor="middle" fill="#4ade80" font-size="7">api-1</text>
+        <rect x="320" y="30" width="35" height="22" rx="4" fill="#14532d" stroke="#22c55e" stroke-width="1"/>
+        <text x="338" y="44" text-anchor="middle" fill="#4ade80" font-size="7">api-2</text>
+        <rect x="320" y="55" width="35" height="22" rx="4" fill="#14532d" stroke="#22c55e" stroke-width="1"/>
+        <text x="338" y="69" text-anchor="middle" fill="#4ade80" font-size="7">web-1</text>
+        <rect x="320" y="80" width="35" height="22" rx="4" fill="#14532d" stroke="#22c55e" stroke-width="1"/>
+        <text x="338" y="94" text-anchor="middle" fill="#4ade80" font-size="7">web-2</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SLIDE 9 — CHECKPOINT & RESUME STATE MACHINE
+     ════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <h2 class="fade-in">Checkpoint & <span class="accent">Resume</span></h2>
+  <div class="cols cols-23" style="margin-top:24px">
+    <div class="fade-in fade-in-d1 vstack">
+      <h3>How It Works</h3>
+      <ul style="font-size:.95em">
+        <li>State saved to <code>pipeline_state.json</code> after every stage</li>
+        <li>On <code>--resume</code>, loads state and skips completed stages</li>
+        <li>No wasted LLM calls on crash recovery</li>
+        <li>Budget accounting survives restarts</li>
+      </ul>
+      <div class="card" style="margin-top:8px">
+        <pre><code><span class="dim"># First run crashes at codegen</span>
+$ agent-harness run
+<span class="green">&#10003; ingest</span>  <span class="green">&#10003; extract</span>  <span class="green">&#10003; plan</span>  <span class="red">&#10007; codegen</span>
+
+<span class="dim"># Resume from checkpoint</span>
+$ agent-harness run --resume generated/
+<span class="dim">skip</span>   <span class="dim">skip</span>    <span class="dim">skip</span>  <span class="green">&#10003; codegen</span>  <span class="green">&#10003; execute</span> ...</code></pre>
+      </div>
+    </div>
+    <div class="fade-in fade-in-d2" style="display:flex;justify-content:center">
+      <svg viewBox="0 0 420 370" width="420" height="370">
+        <!-- States -->
+        <circle cx="210" cy="30" r="22" fill="#334155" stroke="#64748b" stroke-width="2"/>
+        <text x="210" y="35" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="600">START</text>
+
+        <line x1="210" y1="55" x2="210" y2="75" class="arrow arrow-blue"/>
+
+        <!-- Running state -->
+        <rect x="140" y="80" width="140" height="40" rx="10" fill="#1e3a5f" stroke="#3b82f6" stroke-width="2"/>
+        <text x="210" y="105" text-anchor="middle" fill="#60a5fa" font-weight="600" font-size="12">RUNNING stage N</text>
+
+        <!-- Success path -->
+        <line x1="210" y1="125" x2="210" y2="155" class="arrow" stroke="#22c55e" marker-end="url(#arrowhead-green)"/>
+        <text x="245" y="142" fill="#22c55e" font-size="10">success</text>
+
+        <!-- Checkpoint -->
+        <rect x="145" y="160" width="130" height="35" rx="8" fill="#14532d" stroke="#22c55e" stroke-width="1.5"/>
+        <text x="210" y="182" text-anchor="middle" fill="#4ade80" font-size="11" font-weight="600">CHECKPOINT</text>
+
+        <!-- Loop back or advance -->
+        <path d="M 210,200 L 210,220 L 310,220 L 310,100 L 285,100" stroke="#3b82f6" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+        <text x="328" y="165" fill="#93c5fd" font-size="10" transform="rotate(90,328,165)">next stage</text>
+
+        <!-- Error path from Running -->
+        <path d="M 135,100 L 60,100 L 60,170" stroke="#ef4444" stroke-width="2" fill="none" marker-end="url(#arrowhead-red)"/>
+        <text x="90" y="90" fill="#ef4444" font-size="10">error</text>
+
+        <!-- Failed state -->
+        <rect x="15" y="175" width="90" height="35" rx="8" fill="#450a0a" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="60" y="197" text-anchor="middle" fill="#fca5a5" font-size="11" font-weight="600">FAILED</text>
+
+        <!-- Save state on failure too -->
+        <line x1="60" y1="215" x2="60" y2="245" class="arrow" stroke="#ef4444" marker-end="url(#arrowhead-red)"/>
+        <rect x="10" y="250" width="100" height="30" rx="6" fill="#1e293b" stroke="#ef4444" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="60" y="269" text-anchor="middle" fill="#fca5a5" font-size="10">save state</text>
+
+        <!-- Resume arrow -->
+        <path d="M 115,265 L 160,265 L 160,230 L 210,230 L 210,220" stroke="#f59e0b" stroke-width="2" fill="none" stroke-dasharray="6,3" marker-end="url(#arrowhead-amber)"/>
+        <text x="175" y="255" fill="#f59e0b" font-size="10" font-weight="600">--resume</text>
+
+        <!-- Complete -->
+        <path d="M 210,220 L 210,320" stroke="#22c55e" stroke-width="2" fill="none" marker-end="url(#arrowhead-green)" stroke-dasharray="4,4"/>
+        <text x="240" y="280" fill="#64748b" font-size="10">all stages done</text>
+        <circle cx="210" cy="340" r="22" fill="#22c55e" stroke="none"/>
+        <text x="210" y="345" text-anchor="middle" fill="#052e16" font-size="11" font-weight="700">DONE</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SLIDE 10 — EXAMPLE WALKTHROUGH pt 1
+     ════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <h2 class="fade-in">Walkthrough: <span class="accent">PRD to Report</span> <span class="dim">(1/2)</span></h2>
+  <div class="vstack" style="margin-top:20px;gap:20px">
+    <div class="cols cols-2 fade-in fade-in-d1" style="gap:24px">
+      <div class="card">
+        <h3 style="color:#64748b">Step 1 &mdash; Ingest</h3>
+        <pre style="font-size:.8em"><code><span class="dim"># Input: docs/input/sample_vpn_prd.md</span>
+# VPN Requirements
+## VPN-1: Multi-Protocol Support
+The gateway MUST support WireGuard,
+OpenVPN, and IKEv2...
+
+<span class="green">&rarr;</span> IngestedDocument(
+    doc_id="a7f3...",
+    sections=[
+      Section("VPN-1: Multi-Protocol Support"),
+      Section("VPN-2: Encryption Standards"),
+      ...12 sections total
+    ]
+  )</code></pre>
+      </div>
+      <div class="card">
+        <h3 style="color:#3b82f6">Step 2 &mdash; Extract</h3>
+        <pre style="font-size:.8em"><code><span class="dim"># Sonnet extracts atomic requirements</span>
+RequirementSet(
+  requirements=[
+    Requirement(
+      req_id=<span class="accent">"REQ-VPN-001"</span>,
+      category="vpn", priority="P0",
+      description="WireGuard tunnel
+        establishes within 5 seconds",
+      acceptance_criteria=[
+        "Handshake completes < 5s",
+        "Tunnel stable at 1Gbps"
+      ]),
+    ... <span class="dim">30+ requirements</span>
+  ])</code></pre>
+      </div>
+    </div>
+    <div class="cols cols-2 fade-in fade-in-d2" style="gap:24px">
+      <div class="card">
+        <h3 style="color:#8b5cf6">Step 3 &mdash; Plan <span class="tag tag-opus" style="font-size:.7em">Opus</span></h3>
+        <pre style="font-size:.8em"><code><span class="dim"># Opus designs comprehensive test plan</span>
+TestPlan(suites=[
+  TestSuite("TS-VPN-PROTO", test_cases=[
+    TestCaseSpec(
+      test_id=<span class="purple">"TC-VPN-PROTO-001"</span>,
+      traced_req_ids=["REQ-VPN-001"],
+      title="WireGuard tunnel establishment",
+      topology=<span class="cyan">"vpn_basic"</span>,
+      tools=["scapy", "tcpdump"],
+      steps=[
+        Step(1, "Initiate handshake",
+             "Completes < 5s"),
+        Step(2, "Verify encryption",
+             "ChaCha20-Poly1305"),
+      ]),
+    ... <span class="dim">50+ test cases</span>
+  ])])</code></pre>
+      </div>
+      <div class="card">
+        <h3 style="color:#3b82f6">Step 4 &mdash; CodeGen</h3>
+        <pre style="font-size:.8em"><code><span class="dim"># Sonnet generates executable pytest</span>
+<span class="accent">@pytest.mark.vpn</span>
+<span class="accent">@pytest.mark.parametrize</span>("protocol",
+    ["wireguard", "openvpn", "ikev2"])
+def test_tunnel_establishment(
+    vpn_helper, protocol):
+    """TC-VPN-PROTO-001
+    Traces: REQ-VPN-001"""
+    tunnel = vpn_helper.establish_tunnel(
+        protocol=protocol)
+    <span class="green">assert</span> tunnel.is_up, \
+        f"Failed: {tunnel.error}"
+    <span class="green">assert</span> tunnel.handshake_time_ms < 5000</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SLIDE 11 — EXAMPLE WALKTHROUGH pt 2
+     ════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <h2 class="fade-in">Walkthrough: <span class="accent">PRD to Report</span> <span class="dim">(2/2)</span></h2>
+  <div class="vstack" style="margin-top:20px;gap:20px">
+    <div class="cols cols-3 fade-in fade-in-d1" style="gap:20px">
+      <div class="card">
+        <h3 style="color:#64748b">Step 5 &mdash; Execute</h3>
+        <pre style="font-size:.78em"><code><span class="dim"># Deploy Containerlab topology</span>
+<span class="dim"># Run pytest with json-report</span>
+
+TestRunResult(
+  total=52, <span class="green">passed=47</span>,
+  <span class="red">failed=3</span>, errored=2,
+  duration=84.2s
+)
+
+<span class="dim"># Retry flaky tests once</span>
+<span class="dim"># Collect container logs</span></code></pre>
+      </div>
+      <div class="card">
+        <h3 style="color:#f59e0b">Step 5b &mdash; Repair</h3>
+        <pre style="font-size:.78em"><code><span class="dim"># 2 errors are ImportError</span>
+<span class="dim"># &rarr; classified as test_bug</span>
+<span class="dim"># &rarr; repair agent fixes them</span>
+
+RepairAttempt(
+  test_id="test_l7_waf...",
+  outcome=<span class="green">"fixed"</span>
+)
+RepairAttempt(
+  test_id="test_l4_nat...",
+  outcome=<span class="green">"fixed"</span>
+)</code></pre>
+      </div>
+      <div class="card">
+        <h3 style="color:#8b5cf6">Step 6 &mdash; Triage <span class="tag tag-opus" style="font-size:.65em">Opus</span></h3>
+        <pre style="font-size:.78em"><code><span class="dim"># 3 remaining failures analyzed</span>
+
+TriageEntry(
+  cluster="FC-001",
+  severity=<span class="red">"critical"</span>,
+  category="product_bug",
+  desc="VPN kill switch
+    engages in 2.1s, not
+    500ms as required",
+  affected_reqs=
+    [<span class="accent">"REQ-VPN-004"</span>],
+  confidence=0.92
+)</code></pre>
+      </div>
+    </div>
+    <div class="fade-in fade-in-d2" style="margin-top:4px">
+      <div class="card" style="background:#14532d;border-color:#22c55e">
+        <div class="cols cols-32" style="gap:32px">
+          <div>
+            <h3 style="color:#4ade80">Step 7 &mdash; Report Generated</h3>
+            <ul style="font-size:.9em">
+              <li><strong>Pass rate:</strong> 94.2% (49/52 after repair)</li>
+              <li><strong>1 critical bug:</strong> Kill switch timing (REQ-VPN-004 blocked)</li>
+              <li><strong>Coverage:</strong> 30/30 requirements have tests</li>
+              <li><strong>Recommendation:</strong> Hold release &mdash; fix kill switch timing</li>
+            </ul>
+          </div>
+          <div style="text-align:center">
+            <p style="font-size:.9em;color:#86efac;margin-bottom:8px">Output files:</p>
+            <code style="font-size:.85em">generated/reports/report.html</code><br>
+            <code style="font-size:.85em">generated/reports/summary.md</code><br>
+            <p style="font-size:.85em;color:#64748b;margin-top:12px">Total cost: <span class="green">$3.42</span> &bull; 14 LLM calls &bull; 84s execution</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SLIDE 12 — QUICK START
+     ════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <h2 class="fade-in">Getting <span class="accent">Started</span></h2>
+  <div class="cols cols-2" style="margin-top:24px;gap:40px">
+    <div class="fade-in fade-in-d1">
+      <h3>Setup & Run</h3>
+      <pre><code><span class="dim"># Install</span>
+git clone &lt;repo&gt; && cd agent-harness
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+
+<span class="dim"># Configure</span>
+export ANTHROPIC_API_KEY=sk-ant-...
+
+<span class="dim"># Validate (no LLM calls)</span>
+agent-harness run <span class="accent">--dry-run</span>
+
+<span class="dim"># Place your PRD</span>
+cp my-product-spec.md docs/input/
+
+<span class="dim"># Run full pipeline</span>
+agent-harness run
+
+<span class="dim"># View report</span>
+open generated/reports/report.html</code></pre>
+    </div>
+    <div class="fade-in fade-in-d2 vstack">
+      <h3>CLI Commands</h3>
+      <div class="card">
+        <p><code class="accent">run</code> &mdash; Full pipeline (ingest &rarr; report)</p>
+        <p class="dim" style="font-size:.85em">--dry-run | --resume DIR | --docs-dir DIR</p>
+      </div>
+      <div class="card">
+        <p><code class="accent">plan-only</code> &mdash; Stop after test plan</p>
+        <p class="dim" style="font-size:.85em">Great for reviewing the plan before executing</p>
+      </div>
+      <div class="card">
+        <p><code class="accent">execute-only</code> &mdash; Run pre-generated tests</p>
+        <p class="dim" style="font-size:.85em">--topology NAME to auto-deploy Containerlab</p>
+      </div>
+      <div class="card">
+        <p><code class="accent">triage-only</code> &mdash; Analyze existing results</p>
+        <p class="dim" style="font-size:.85em">Feed any pytest JSON report for LLM analysis</p>
+      </div>
+      <div class="card">
+        <p><code class="accent">token-usage</code> &mdash; Cost breakdown by tier &amp; task</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     SLIDE 13 — EXTENSIBILITY
+     ════════════════════════════════════════════════════════ -->
+<section class="slide center">
+  <div>
+    <h2 class="fade-in" style="margin-bottom:32px">Designed for <span class="accent">Extensibility</span></h2>
+    <div class="cols cols-3 fade-in fade-in-d1" style="gap:24px;text-align:left">
+      <div class="card">
+        <h3>New Domain Skills</h3>
+        <p>Drop a <code>.md</code> file in <code>skills/</code>. No Python needed. Auto-discovered and injected into matching agents at runtime.</p>
+        <pre style="font-size:.75em;margin-top:8px"><code>skills/domains/sdwan.md
+skills/test-patterns/5g-testing.md</code></pre>
+      </div>
+      <div class="card">
+        <h3>Product Overrides</h3>
+        <p>Create <code>skills/products/&lt;name&gt;/</code> with product-specific priorities and known issues. Run with <code>--product</code>.</p>
+        <pre style="font-size:.75em;margin-top:8px"><code>agent-harness run \
+  --product my-firewall</code></pre>
+      </div>
+      <div class="card">
+        <h3>Skill Packs</h3>
+        <p>Skills are files in git. Share across teams. Import community skill packs. API refs auto-generated from code.</p>
+        <pre style="font-size:.75em;margin-top:8px"><code>git clone team/5g-skills \
+  skills/domains/5g/</code></pre>
+      </div>
+    </div>
+    <div class="cols cols-3 fade-in fade-in-d2" style="gap:24px;text-align:left;margin-top:16px">
+      <div class="card">
+        <h3>New LLM Providers</h3>
+        <p>Implement <code>LLMProvider.call()</code> &mdash; one async method. Plug in OpenAI, Ollama, vLLM.</p>
+      </div>
+      <div class="card">
+        <h3>New Topologies</h3>
+        <p>Drop <code>.clab.yaml</code> in <code>config/topologies/</code>. Auto-discovered by plan agent.</p>
+      </div>
+      <div class="card">
+        <h3>Auto-Gen API Skills</h3>
+        <p>API reference skills generated from Python docstrings via AST. Codegen agent always has current API.</p>
+      </div>
+    </div>
+    <div class="fade-in fade-in-d3" style="margin-top:32px">
+      <p class="dim" style="font-size:1.1em">52 tests &bull; 9 pipeline stages &bull; 12 skill files &bull; 5 gap types &bull; Python 3.11+</p>
+      <p style="margin-top:16px;font-size:1.3em;font-weight:600">
+        <span class="accent">PRD in &rarr; Report out.</span> <span class="dim">Fully autonomous.</span>
+      </p>
+    </div>
+  </div>
+</section>
+
+</div><!-- /deck -->
+
+<script>
+const slides = document.querySelectorAll('.slide');
+let current = 0;
+
+function show(idx) {
+  slides.forEach((s, i) => {
+    s.classList.remove('active', 'prev');
+    if (i === idx) s.classList.add('active');
+    else if (i < idx) s.classList.add('prev');
+  });
+  current = idx;
+  document.getElementById('counter').textContent = `${idx + 1} / ${slides.length}`;
+  document.getElementById('progress').style.width = `${((idx + 1) / slides.length) * 100}%`;
+}
+
+function next() { if (current < slides.length - 1) show(current + 1); }
+function prev() { if (current > 0) show(current - 1); }
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
+  if (e.key === 'ArrowLeft')  { e.preventDefault(); prev(); }
+  if (e.key === 'Home')       { e.preventDefault(); show(0); }
+  if (e.key === 'End')        { e.preventDefault(); show(slides.length - 1); }
+});
+
+// Touch swipe support
+let touchStartX = 0;
+document.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; });
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].screenX - touchStartX;
+  if (dx < -50) next();
+  if (dx > 50) prev();
+});
+
+show(0);
+</script>
+</body>
+</html>
